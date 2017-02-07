@@ -1,8 +1,6 @@
 package fr.neamar.kiss.adapter;
 
-import android.annotation.TargetApi;
 import android.content.Context;
-import android.os.Build;
 import android.os.Handler;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,12 +11,13 @@ import java.util.ArrayList;
 
 import fr.neamar.kiss.KissApplication;
 import fr.neamar.kiss.result.AppResult;
-import fr.neamar.kiss.result.ContactResult;
+import fr.neamar.kiss.result.ContactsResult;
 import fr.neamar.kiss.result.PhoneResult;
 import fr.neamar.kiss.result.Result;
 import fr.neamar.kiss.result.SearchResult;
-import fr.neamar.kiss.result.SettingResult;
-import fr.neamar.kiss.result.ToggleResult;
+import fr.neamar.kiss.result.SettingsResult;
+import fr.neamar.kiss.result.ShortcutsResult;
+import fr.neamar.kiss.result.TogglesResult;
 import fr.neamar.kiss.searcher.QueryInterface;
 
 public class RecordAdapter extends ArrayAdapter<Result> {
@@ -38,7 +37,7 @@ public class RecordAdapter extends ArrayAdapter<Result> {
     }
 
     public int getViewTypeCount() {
-        return 6;
+        return 7;
     }
 
     public int getItemViewType(int position) {
@@ -46,14 +45,16 @@ public class RecordAdapter extends ArrayAdapter<Result> {
             return 0;
         else if (results.get(position) instanceof SearchResult)
             return 1;
-        else if (results.get(position) instanceof ContactResult)
+        else if (results.get(position) instanceof ContactsResult)
             return 2;
-        else if (results.get(position) instanceof ToggleResult)
+        else if (results.get(position) instanceof TogglesResult)
             return 3;
-        else if (results.get(position) instanceof SettingResult)
+        else if (results.get(position) instanceof SettingsResult)
             return 4;
         else if (results.get(position) instanceof PhoneResult)
             return 5;
+        else if (results.get(position) instanceof ShortcutsResult)
+            return 6;
         else
             return -1;
     }
@@ -63,17 +64,13 @@ public class RecordAdapter extends ArrayAdapter<Result> {
         return results.get(position).display(getContext(), results.size() - position, convertView);
     }
 
-    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     public void onLongClick(final int pos, View v) {
-        // Popup menu is not available before Honeycomb.
-        // We simply remove the item from history
-        if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-            removeResult(results.get(pos));
-            return;
-        }
-
         PopupMenu menu = results.get(pos).getPopupMenu(getContext(), this, v);
-        menu.show();
+
+        //check if menu contains elements and if yes show it
+        if (menu.getMenu().size() > 0) {
+            menu.show();
+        }
     }
 
     public void onClick(final int position, View v) {

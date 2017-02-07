@@ -1,22 +1,26 @@
 package fr.neamar.kiss.toggles;
 
 import android.bluetooth.BluetoothAdapter;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
+import android.provider.Settings;
 import android.util.Log;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import fr.neamar.kiss.pojo.TogglePojo;
+import fr.neamar.kiss.KissApplication;
+import fr.neamar.kiss.pojo.TogglesPojo;
 
 public class TogglesHandler {
     private final ConnectivityManager connectivityManager;
     private final WifiManager wifiManager;
     private final BluetoothAdapter bluetoothAdapter;
     private final AudioManager audioManager;
+    private final ContentResolver contentResolver;
 
     /**
      * Initialize managers
@@ -29,6 +33,7 @@ public class TogglesHandler {
         this.wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         this.audioManager = ((AudioManager) context.getSystemService(Context.AUDIO_SERVICE));
+        this.contentResolver = context.getContentResolver();
     }
 
     /**
@@ -37,7 +42,7 @@ public class TogglesHandler {
      * @param pojo item to look for
      * @return item state
      */
-    public Boolean getState(TogglePojo pojo) {
+    public Boolean getState(TogglesPojo pojo) {
         try {
             switch (pojo.settingName) {
                 case "wifi":
@@ -48,6 +53,12 @@ public class TogglesHandler {
                     return getBluetoothState();
                 case "silent":
                     return getSilentState();
+                case "torch":
+                    return getTorchState();
+                case "sync":
+                    return getSyncState();
+                case "autorotate":
+                    return getAutorotationState();
                 default:
                     Log.e("wtf", "Unsupported toggle for reading: " + pojo.settingName);
                     return false;
@@ -59,7 +70,7 @@ public class TogglesHandler {
         }
     }
 
-    public void setState(TogglePojo pojo, Boolean state) {
+    public void setState(TogglesPojo pojo, Boolean state) {
         try {
             switch (pojo.settingName) {
                 case "wifi":
@@ -74,6 +85,13 @@ public class TogglesHandler {
                 case "silent":
                     setSilentState(state);
                     break;
+                case "torch":
+                    setTorchState(state);
+                    break;
+                case "sync":
+                    setSyncState(state);
+                case "autorotate":
+                    setAutorotationState(state);
                 default:
                     Log.e("wtf", "Unsupported toggle for update: " + pojo.settingName);
                     break;
@@ -127,6 +145,17 @@ public class TogglesHandler {
             bluetoothAdapter.disable();
     }
 
+    private Boolean getTorchState() {
+        return KissApplication.getCameraHandler().isTorchAvailable() && KissApplication.getCameraHandler().getTorchState();
+    }
+
+    private void setTorchState(Boolean state) {
+        if(KissApplication.getCameraHandler().isTorchAvailable()) {
+            KissApplication.getCameraHandler().setTorchState(state);
+        }
+    }
+
+
     private Boolean getSilentState() {
         int state = audioManager.getRingerMode();
         return state == AudioManager.RINGER_MODE_SILENT || state == AudioManager.RINGER_MODE_VIBRATE;
@@ -142,5 +171,21 @@ public class TogglesHandler {
             audioManager.setRingerMode(AudioManager.RINGER_MODE_VIBRATE);
             audioManager.setStreamVolume(AudioManager.STREAM_RING, 0, AudioManager.FLAG_VIBRATE);
         }
+    }
+
+    private Boolean getSyncState() {
+        return ContentResolver.getMasterSyncAutomatically();
+    }
+
+    private void setSyncState(Boolean state) {
+        ContentResolver.setMasterSyncAutomatically(state);
+    }
+
+    private Boolean getAutorotationState() {
+        return android.provider.Settings.System.getInt(this.contentResolver,Settings.System.ACCELEROMETER_ROTATION, 0) == 1;
+    }
+
+    private void setAutorotationState(Boolean state) {
+        android.provider.Settings.System.putInt(this.contentResolver,Settings.System.ACCELEROMETER_ROTATION, (state) ? 1 : 0 );
     }
 }

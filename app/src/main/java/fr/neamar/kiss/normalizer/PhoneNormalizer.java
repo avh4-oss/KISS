@@ -1,16 +1,12 @@
 package fr.neamar.kiss.normalizer;
 
-import android.os.Build;
-import android.telephony.PhoneNumberUtils;
-
-import java.util.Locale;
+import java.util.regex.Pattern;
 
 public class PhoneNormalizer {
-    public static String normalizePhone(String phoneNumber) {
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            return PhoneNumberUtils.formatNumber(phoneNumber, Locale.getDefault().getCountry());
-        } else {
-            return PhoneNumberUtils.formatNumber(phoneNumber);
-        }
+
+    private static Pattern ignorePattern = Pattern.compile("[-.():/ ]");
+
+    public static String simplifyPhoneNumber(String phoneNumber) {
+        return ignorePattern.matcher(phoneNumber).replaceAll("");
     }
 }

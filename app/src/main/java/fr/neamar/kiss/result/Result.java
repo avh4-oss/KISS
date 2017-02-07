@@ -1,9 +1,11 @@
 package fr.neamar.kiss.result;
 
-import android.annotation.TargetApi;
 import android.content.Context;
+import android.content.res.TypedArray;
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
+import android.preference.PreferenceManager;
+import android.support.annotation.MenuRes;
 import android.text.Html;
 import android.text.Spanned;
 import android.util.Log;
@@ -14,16 +16,18 @@ import android.widget.PopupMenu;
 import android.widget.Toast;
 
 import fr.neamar.kiss.KissApplication;
+import fr.neamar.kiss.MainActivity;
 import fr.neamar.kiss.R;
 import fr.neamar.kiss.adapter.RecordAdapter;
 import fr.neamar.kiss.db.DBHelper;
 import fr.neamar.kiss.pojo.AppPojo;
-import fr.neamar.kiss.pojo.ContactPojo;
+import fr.neamar.kiss.pojo.ContactsPojo;
 import fr.neamar.kiss.pojo.PhonePojo;
 import fr.neamar.kiss.pojo.Pojo;
 import fr.neamar.kiss.pojo.SearchPojo;
-import fr.neamar.kiss.pojo.SettingPojo;
-import fr.neamar.kiss.pojo.TogglePojo;
+import fr.neamar.kiss.pojo.SettingsPojo;
+import fr.neamar.kiss.pojo.ShortcutsPojo;
+import fr.neamar.kiss.pojo.TogglesPojo;
 import fr.neamar.kiss.searcher.QueryInterface;
 
 public abstract class Result {
@@ -35,16 +39,19 @@ public abstract class Result {
     public static Result fromPojo(QueryInterface parent, Pojo pojo) {
         if (pojo instanceof AppPojo)
             return new AppResult((AppPojo) pojo);
-        else if (pojo instanceof ContactPojo)
-            return new ContactResult(parent, (ContactPojo) pojo);
+        else if (pojo instanceof ContactsPojo)
+            return new ContactsResult(parent, (ContactsPojo) pojo);
         else if (pojo instanceof SearchPojo)
             return new SearchResult((SearchPojo) pojo);
-        else if (pojo instanceof SettingPojo)
-            return new SettingResult((SettingPojo) pojo);
-        else if (pojo instanceof TogglePojo)
-            return new ToggleResult((TogglePojo) pojo);
+        else if (pojo instanceof SettingsPojo)
+            return new SettingsResult((SettingsPojo) pojo);
+        else if (pojo instanceof TogglesPojo)
+            return new TogglesResult((TogglesPojo) pojo);
         else if (pojo instanceof PhonePojo)
             return new PhoneResult((PhonePojo) pojo);
+        else if (pojo instanceof ShortcutsPojo)
+            return new ShortcutsResult((ShortcutsPojo) pojo);
+
 
         throw new RuntimeException("Unable to create a result from POJO");
     }
@@ -63,7 +70,6 @@ public abstract class Result {
      *
      * @return a PopupMenu object
      */
-    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     public PopupMenu getPopupMenu(final Context context, final RecordAdapter parent, View parentView) {
         PopupMenu menu = buildPopupMenu(context, parent, parentView);
 
@@ -81,10 +87,23 @@ public abstract class Result {
      *
      * @return an inflated, listener-free PopupMenu
      */
-    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
-    protected PopupMenu buildPopupMenu(Context context, final RecordAdapter parent, View parentView) {
+    PopupMenu buildPopupMenu(Context context, final RecordAdapter parent, View parentView) {
+        return inflatePopupMenu(R.menu.menu_item_default, context, parentView);
+    }
+
+    protected PopupMenu inflatePopupMenu(@MenuRes int menuId, Context context, View parentView) {
         PopupMenu menu = new PopupMenu(context, parentView);
-        menu.getMenuInflater().inflate(R.menu.menu_item_default, menu.getMenu());
+        menu.getMenuInflater().inflate(menuId, menu.getMenu());
+
+        // If app already pinned, do not display the "add to favorite" option
+        // otherwise don't show the "remove favorite button"
+        String favApps = PreferenceManager.getDefaultSharedPreferences(context).
+                getString("favorite-apps-list", "");
+        if (favApps.contains(this.pojo.id + ";")) {
+            menu.getMenu().removeItem(R.id.item_favorites_add);
+        } else {
+            menu.getMenu().removeItem(R.id.item_favorites_remove);
+        }
 
         return menu;
     }
@@ -95,22 +114,44 @@ public abstract class Result {
      *
      * @return Works in the same way as onOptionsItemSelected, return true if the action has been handled, false otherwise
      */
-    protected Boolean popupMenuClickHandler(Context context, RecordAdapter parent, MenuItem item) {
+    Boolean popupMenuClickHandler(Context context, RecordAdapter parent, MenuItem item) {
         switch (item.getItemId()) {
             case R.id.item_remove:
                 removeItem(context, parent);
                 return true;
+            case R.id.item_favorites_add:
+                launchAddToFavorites(context, pojo);
+                break;
+            case R.id.item_favorites_remove:
+                launchRemoveFromFavorites(context, pojo);
+                break;
         }
+
+        //Update Search to reflect favorite add, if the "exclude favorites" option is active
+        ((MainActivity) context).updateRecords();
+
         return false;
+    }
+
+    private void launchAddToFavorites(Context context, Pojo app) {
+        String msg = context.getResources().getString(R.string.toast_favorites_added);
+        KissApplication.getDataHandler(context).addToFavorites((MainActivity) context, app.id);
+        Toast.makeText(context, String.format(msg, app.name), Toast.LENGTH_SHORT).show();
+    }
+
+    private void launchRemoveFromFavorites(Context context, Pojo app) {
+        String msg = context.getResources().getString(R.string.toast_favorites_removed);
+        KissApplication.getDataHandler(context).removeFromFavorites((MainActivity) context, app.id);
+        Toast.makeText(context, String.format(msg, app.name), Toast.LENGTH_SHORT).show();
     }
 
     /**
      * Remove the current result from the list
      *
-     * @param context
-     * @param parent
+     * @param context android context
+     * @param parent  adapter on which to remove the item
      */
-    protected void removeItem(Context context, RecordAdapter parent) {
+    private void removeItem(Context context, RecordAdapter parent) {
         Toast.makeText(context, R.string.removed_item, Toast.LENGTH_SHORT).show();
         parent.removeResult(this);
     }
@@ -171,7 +212,7 @@ public abstract class Result {
      * @return text displayable on a textview
      */
     Spanned enrichText(String text) {
-        return Html.fromHtml(text.replaceAll("\\{(.*)\\}", "<font color=#4caf50>$1</font>"));
+        return Html.fromHtml(text.replaceAll("\\{", "<font color=#4caf50>").replaceAll("\\}", "</font>"));
     }
 
     /**
@@ -181,10 +222,22 @@ public abstract class Result {
      */
     void recordLaunch(Context context) {
         // Save in history
-        KissApplication.getDataHandler(context).addToHistory(context, pojo.id);
+        KissApplication.getDataHandler(context).addToHistory(pojo.id);
     }
 
     public void deleteRecord(Context context) {
         DBHelper.removeFromHistory(context, pojo.id);
+    }
+
+    /*
+     * Get fill color from theme
+     *
+     */
+    public int getThemeFillColor(Context context) {
+        int[] attrs = new int[]{R.attr.resultColor /* index 0 */};
+        TypedArray ta = context.obtainStyledAttributes(attrs);
+        int color = ta.getColor(0, Color.WHITE);
+        ta.recycle();
+        return color;
     }
 }

@@ -1,6 +1,5 @@
 package fr.neamar.kiss.searcher;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import fr.neamar.kiss.KissApplication;
@@ -26,7 +25,7 @@ public class QuerySearcher extends Searcher {
     @Override
     protected List<Pojo> doInBackground(Void... voids) {
         // Ask for records
-        final ArrayList<Pojo> pojos = KissApplication.getDataHandler(activity).getResults(
+        final List<Pojo> pojos = KissApplication.getDataHandler(activity).getResults(
                 activity, query);
 
         // Trim items

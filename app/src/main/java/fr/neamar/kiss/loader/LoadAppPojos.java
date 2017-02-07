@@ -2,25 +2,30 @@ package fr.neamar.kiss.loader;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import fr.neamar.kiss.normalizer.StringNormalizer;
+import fr.neamar.kiss.KissApplication;
+import fr.neamar.kiss.TagsHandler;
 import fr.neamar.kiss.pojo.AppPojo;
 
 public class LoadAppPojos extends LoadPojos<AppPojo> {
 
-    private static String KISS_PACKAGE_NAME;
+    private TagsHandler tagsHandler;
+    private static SharedPreferences prefs;
 
     public LoadAppPojos(Context context) {
         super(context, "app://");
-
-        KISS_PACKAGE_NAME = context.getPackageName();
+        prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        tagsHandler = KissApplication.getDataHandler(context).getTagsHandler();
     }
 
     @Override
@@ -33,24 +38,30 @@ public class LoadAppPojos extends LoadPojos<AppPojo> {
         mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
 
         final List<ResolveInfo> appsInfo = manager.queryIntentActivities(mainIntent, 0);
-        Collections.sort(appsInfo, new ResolveInfo.DisplayNameComparator(manager));
+        if (prefs.getString("sort-apps", "alphabetical").equals("invertedAlphabetical")) {
+            Collections.sort(appsInfo, Collections.reverseOrder(new ResolveInfo.DisplayNameComparator(manager)));
+        }
+        else {
+            Collections.sort(appsInfo, new ResolveInfo.DisplayNameComparator(manager));
+        }
 
         ArrayList<AppPojo> apps = new ArrayList<>();
+        String excludedAppList = PreferenceManager.getDefaultSharedPreferences(context).
+                getString("excluded-apps-list", context.getPackageName() + ";");
+        List excludedApps = Arrays.asList(excludedAppList.split(";"));
+
         for (ResolveInfo info : appsInfo) {
-            if (!KISS_PACKAGE_NAME.equals(info.activityInfo.applicationInfo.packageName)) {
+            if (!excludedApps.contains(info.activityInfo.applicationInfo.packageName)) {
                 AppPojo app = new AppPojo();
 
                 app.id = pojoScheme + info.activityInfo.applicationInfo.packageName + "/"
                         + info.activityInfo.name;
-                app.name = info.loadLabel(manager).toString();
-
-                //Ugly hack to remove accented characters.
-                //Note Java 5 provides a Normalizer method, unavailable for Android :\
-                app.nameLowerCased = StringNormalizer.normalize(app.name);
+                app.setName(info.loadLabel(manager).toString());
 
                 app.packageName = info.activityInfo.applicationInfo.packageName;
                 app.activityName = info.activityInfo.name;
 
+                app.tags = tagsHandler.getTags(app.id);
                 apps.add(app);
             }
         }
